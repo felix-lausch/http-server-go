@@ -1,16 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 const PORT = 8080
 
 func main() {
-	// http.HandleFunc("/", handler)
-	// http.ListenAndServe(fmt.Sprintf(":%v", PORT), nil)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", PORT))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
@@ -31,7 +31,6 @@ func main() {
 		// Handle each connection in a new goroutine
 		go handleConnection(conn, requestCount)
 		requestCount++
-		// log.Println("Number of handled requests:", requestCount)
 	}
 }
 
@@ -40,13 +39,13 @@ func handleConnection(conn net.Conn, count int) {
 
 	log.Println("handling Connection:", count)
 
-	buffer := make([]byte, 4096)
-	n, err := conn.Read(buffer)
+	req, err := ParseRequest(conn)
 	if err != nil {
-		log.Printf("Error reading: %v", err)
+		log.Printf("Error parsing request: %s", err)
+		return
 	}
 
-	log.Printf("Received:\n%s", string(buffer[:n]))
+	log.Println(req)
 
 	// Send HTTP response
 	response := "HTTP/1.1 200 OK\r\n" +
@@ -60,4 +59,41 @@ func handleConnection(conn net.Conn, count int) {
 	if err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
+}
+
+func ParseRequest(conn net.Conn) (Request, error) {
+	buffer := make([]byte, 4096)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return Request{}, err
+		// log.Printf("Error reading: %v", err)
+	}
+
+	content := string(buffer[:n])
+	// log.Printf("Received:\n%s", content)
+
+	splitContent := strings.Split(content, "\r\n\r\n")
+	if len(splitContent) != 2 {
+		return Request{}, errors.New("Request isn't http formatted")
+	}
+
+	headers := splitContent[0]
+	headerLines := strings.Split(headers, "\r\n")
+	firstLineSplit := strings.Split(headerLines[0], " ")
+
+	return Request{
+		firstLineSplit[0],
+		firstLineSplit[1],
+		firstLineSplit[2],
+	}, nil
+}
+
+type Request struct {
+	Method      string
+	Path        string
+	HttpVersion string
+}
+
+func (req Request) String() string {
+	return fmt.Sprintf("Method: %v, Path: %v, HttpVersion: %v", req.Method, req.Path, req.HttpVersion)
 }
