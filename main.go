@@ -46,23 +46,18 @@ func handleConnection(conn net.Conn, count int) {
 	}
 
 	log.Println(req)
+	//TODO: handle req & pass result into FormatResponse
 
 	// Send HTTP response
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Connection: close\r\n" +
-		"\r\n" +
-		"Hello from your TCP server now speaking HTTP!\n" +
-		"Requests handled: " + fmt.Sprint(count) + "\r\n"
-
-	_, err = conn.Write([]byte(response))
+	res := FormatResponse(200)
+	_, err = conn.Write(res)
 	if err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
 
 func ParseRequest(conn net.Conn) (Request, error) {
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, 4096) //TODO: make reading smarter? what if body is larger than this?
 	n, err := conn.Read(buffer)
 	if err != nil {
 		return Request{}, err
@@ -70,21 +65,33 @@ func ParseRequest(conn net.Conn) (Request, error) {
 	}
 
 	content := string(buffer[:n])
-	// log.Printf("Received:\n%s", content)
+	log.Printf("Received:\n%s", content)
 
 	splitContent := strings.Split(content, "\r\n\r\n")
 	if len(splitContent) != 2 {
-		return Request{}, errors.New("Request isn't http formatted")
+		return Request{}, errors.New("request isn't http formatted")
 	}
 
-	headers := splitContent[0]
-	headerLines := strings.Split(headers, "\r\n")
+	requestInfo := splitContent[0]
+	headerLines := strings.Split(requestInfo, "\r\n")
+
 	firstLineSplit := strings.Split(headerLines[0], " ")
+	if len(firstLineSplit) != 3 {
+		return Request{}, errors.New("http request method could not be read correctly")
+	}
+
+	headers := make(map[string]string, len(headerLines[1:]))
+	for _, headerLine := range headerLines[1:] {
+		splitHeaderLine := strings.Split(headerLine, ": ")
+		headers[splitHeaderLine[0]] = splitHeaderLine[1]
+	}
 
 	return Request{
-		firstLineSplit[0],
-		firstLineSplit[1],
-		firstLineSplit[2],
+		Method:      firstLineSplit[0],
+		Path:        firstLineSplit[1],
+		HttpVersion: firstLineSplit[2],
+		Headers:     headers,
+		Body:        splitContent[1],
 	}, nil
 }
 
@@ -92,8 +99,21 @@ type Request struct {
 	Method      string
 	Path        string
 	HttpVersion string
+	Headers     map[string]string
+	Body        string
 }
 
-func (req Request) String() string {
-	return fmt.Sprintf("Method: %v, Path: %v, HttpVersion: %v", req.Method, req.Path, req.HttpVersion)
+// func (req Request) String() string {
+// 	return fmt.Sprintf("Method: %v, Path: %v, HttpVersion: %v", req.Method, req.Path, req.HttpVersion)
+// }
+
+func FormatResponse(statusCode int) []byte {
+	responseString := "HTTP/1.1 200 OK\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"Connection: close\r\n" +
+		"Server: felixGoServer/0.1\r\n" +
+		"\r\n" +
+		"Hello from my custom GOlang server!"
+
+	return []byte(responseString)
 }
