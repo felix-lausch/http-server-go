@@ -63,7 +63,6 @@ func ParseRequest(conn net.Conn) (Request, error) {
 	n, err := conn.Read(buffer)
 	if err != nil {
 		return Request{}, err
-		// log.Printf("Error reading: %v", err)
 	}
 
 	content := string(buffer[:n])
@@ -77,9 +76,14 @@ func ParseRequest(conn net.Conn) (Request, error) {
 	requestInfo := splitContent[0]
 	headerLines := strings.Split(requestInfo, "\r\n")
 
-	firstLineSplit := strings.Split(headerLines[0], " ")
-	if len(firstLineSplit) != 3 {
-		return Request{}, errors.New("http request method could not be read correctly")
+	startLineSplit := strings.Split(headerLines[0], " ")
+	if len(startLineSplit) != 3 {
+		return Request{}, fmt.Errorf("http start line is not correctly formatted: %v", startLineSplit)
+	}
+
+	method, err := ParseHttpMethod(startLineSplit[0])
+	if err != nil {
+		return Request{}, err
 	}
 
 	headers := make(map[string]string, len(headerLines[1:]))
@@ -89,25 +93,21 @@ func ParseRequest(conn net.Conn) (Request, error) {
 	}
 
 	return Request{
-		Method:      firstLineSplit[0],
-		Path:        firstLineSplit[1],
-		HttpVersion: firstLineSplit[2],
+		Method:      method,
+		Path:        startLineSplit[1],
+		HttpVersion: startLineSplit[2],
 		Headers:     headers,
 		Body:        splitContent[1],
 	}, nil
 }
 
 type Request struct {
-	Method      string
+	Method      HttpMethod
 	Path        string
 	HttpVersion string
 	Headers     map[string]string
 	Body        string
 }
-
-// func (req Request) String() string {
-// 	return fmt.Sprintf("Method: %v, Path: %v, HttpVersion: %v", req.Method, req.Path, req.HttpVersion)
-// }
 
 func FormatResponse(statusCode int) []byte {
 	var responseString string
@@ -124,4 +124,42 @@ func FormatResponse(statusCode int) []byte {
 	}
 
 	return []byte(responseString)
+}
+
+//go:generate stringer -type=HttpMethod
+type HttpMethod int
+
+const (
+	GET HttpMethod = iota
+	HEAD
+	POST
+	PUT
+	DELETE
+	CONNECT
+	OPTIONS
+	TRACE
+	PATCH
+)
+
+var (
+	httpMethodsMap = map[string]HttpMethod{
+		"GET":     GET,
+		"HEAD":    HEAD,
+		"POST":    POST,
+		"PUT":     PUT,
+		"DELETE":  DELETE,
+		"CONNECT": CONNECT,
+		"OPTIONS": OPTIONS,
+		"TRACE":   TRACE,
+		"PATCH":   PATCH,
+	}
+)
+
+func ParseHttpMethod(str string) (HttpMethod, error) {
+	method, ok := httpMethodsMap[strings.ToUpper(str)]
+	if !ok {
+		return -1, fmt.Errorf("invalid HTTP method: %q", str)
+	}
+
+	return method, nil
 }
