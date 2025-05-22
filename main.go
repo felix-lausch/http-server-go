@@ -39,17 +39,19 @@ func handleConnection(conn net.Conn, count int) {
 
 	log.Println("handling Connection:", count)
 
+	var res []byte
 	req, err := ParseRequest(conn)
 	if err != nil {
 		log.Printf("Error parsing request: %s", err)
-		return
+		res = FormatResponse(400)
+	} else {
+		log.Println(req)
+		//TODO: handle req & pass result into FormatResponse
+
+		// Send HTTP response
+		res = FormatResponse(200)
 	}
 
-	log.Println(req)
-	//TODO: handle req & pass result into FormatResponse
-
-	// Send HTTP response
-	res := FormatResponse(200)
 	_, err = conn.Write(res)
 	if err != nil {
 		log.Printf("Error writing response: %v", err)
@@ -108,12 +110,18 @@ type Request struct {
 // }
 
 func FormatResponse(statusCode int) []byte {
-	responseString := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Connection: close\r\n" +
-		"Server: felixGoServer/0.1\r\n" +
-		"\r\n" +
-		"Hello from my custom GOlang server!"
+	var responseString string
+	if statusCode == 400 {
+		responseString = "HTTP/1.1 400 BAD REQUEST\r\n" +
+			"Connection: close\r\n"
+	} else {
+		responseString = "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"Connection: close\r\n" +
+			"Server: felixGoServer/0.1\r\n" +
+			"\r\n" +
+			"Hello from my custom GOlang server!"
+	}
 
 	return []byte(responseString)
 }
