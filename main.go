@@ -36,10 +36,10 @@ func main() {
 
 func handleConnection(conn net.Conn, count int) {
 	defer conn.Close()
+	var res []byte
 
 	log.Println("handling Connection:", count)
 
-	var res []byte
 	req, err := ParseRequest(conn)
 	if err != nil {
 		log.Printf("Error parsing request: %s", err)
@@ -109,21 +109,59 @@ type Request struct {
 	Body        string
 }
 
-func FormatResponse(statusCode int) []byte {
-	var responseString string
-	if statusCode == 400 {
-		responseString = "HTTP/1.1 400 BAD REQUEST\r\n" +
-			"Connection: close\r\n"
-	} else {
-		responseString = "HTTP/1.1 200 OK\r\n" +
-			"Content-Type: text/plain\r\n" +
-			"Connection: close\r\n" +
-			"Server: felixGoServer/0.1\r\n" +
-			"\r\n" +
-			"Hello from my custom GOlang server!"
+type Response struct {
+	StatusCode  StatusCode
+	HttpVersion string
+	Headers     map[string]string
+	Body        string
+}
+
+func NewResponse(statusCode StatusCode, headers map[string]string, body string) Response {
+	headers["Content-Length"] = fmt.Sprint(len(body))
+	headers["Server"] = "felixGoServer/0.1"
+	headers["Connection"] = "close"
+
+	return Response{
+		statusCode,
+		"HTTP/1.1",
+		headers,
+		body,
+	}
+}
+
+func (r Response) String() string {
+	statusCodeString := strings.ReplaceAll(r.StatusCode.String(), "_", " ")
+	res := fmt.Sprintf("%v %v %v\r\n", r.HttpVersion, int(r.StatusCode), statusCodeString)
+
+	for k, v := range r.Headers {
+		res += fmt.Sprintf("%v: %v\r\n", k, v)
 	}
 
-	return []byte(responseString)
+	res += "\r\n\r\n"
+	res += r.Body
+
+	return res
+}
+
+func FormatResponse(statusCode StatusCode) []byte {
+	// var responseString string
+	// if statusCode == 400 {
+	// 	responseString = "HTTP/1.1 400 BAD REQUEST\r\n" +
+	// 		"Connection: close\r\n"
+	// } else {
+	// 	responseString = "HTTP/1.1 200 OK\r\n" +
+	// 		"Content-Type: text/plain\r\n" +
+	// 		"Connection: close\r\n" +
+	// 		"Server: felixGoServer/0.1\r\n" +
+	// 		"\r\n" +
+	// 		"Hello from my custom GOlang server!"
+	// }
+
+	res := NewResponse(statusCode, make(map[string]string), "Hello from my custom GOlang server!")
+
+	resString := res.String()
+
+	return []byte(resString)
 }
 
 //go:generate stringer -type=HttpMethod
@@ -163,3 +201,41 @@ func ParseHttpMethod(str string) (HttpMethod, error) {
 
 	return method, nil
 }
+
+//go:generate stringer -type=StatusCode
+type StatusCode int
+
+const (
+	OK                    StatusCode = 200
+	CREATED               StatusCode = 201
+	ACCEPTED              StatusCode = 202
+	NO_CONTENT            StatusCode = 204
+	FOUND                 StatusCode = 302
+	BAD_REQUEST           StatusCode = 400
+	UNAUTHORIZED          StatusCode = 401
+	FORBIDDEN             StatusCode = 403
+	NOT_FOUND             StatusCode = 404
+	METHOD_NOT_ALLOWED    StatusCode = 405
+	CONTENT_TOO_LARGE     StatusCode = 413
+	URI_TOO_LONG          StatusCode = 414
+	INTERNAL_SERVER_ERROR StatusCode = 500
+)
+
+// var (
+// 	statusCodeMap = map[string]StatusCode{
+// 		"OK":     OK,
+// 		"CREATED":     CREATED,
+// 		"ACCEPTED":     ACCEPTED,
+// 		"NO_CONTENT":     NO_CONTENT,
+// 		"FOUND":     FOUND,
+// 		"BAD_REQUEST":     BAD_REQUEST,
+// 		"UNAUTHORIZED":     UNAUTHORIZED,
+// 		"FORBIDDEN":     FORBIDDEN,
+// 		"NOT_FOUND":     NOT_FOUND,
+// 		"METHOD_NOT_ALLOWED":     METHOD_NOT_ALLOWED,
+// 		"CONTENT_TOO_LARGE":     CONTENT_TOO_LARGE,
+// 		"NO_CONTENT":     NO_CONTENT,
+// 		"NO_CONTENT":     NO_CONTENT,
+// 		"NO_CONTENT":     NO_CONTENT,
+// 	}
+// )
