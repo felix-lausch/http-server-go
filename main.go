@@ -137,7 +137,7 @@ func (r Response) String() string {
 		res += fmt.Sprintf("%v: %v\r\n", k, v)
 	}
 
-	res += "\r\n\r\n"
+	res += "\r\n"
 	res += r.Body
 
 	return res
