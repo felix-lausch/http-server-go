@@ -10,15 +10,6 @@ import (
 
 const PORT = 8080
 
-var (
-	requestHandlers = make(map[Route]func(req Request) Response)
-)
-
-type Route struct {
-	Path   string
-	Method HttpMethod
-}
-
 func main() {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", PORT))
 	if err != nil {
@@ -28,7 +19,8 @@ func main() {
 	defer listener.Close()
 	log.Println("Listening on port:", PORT)
 
-	AddRequestHandlers()
+	// AddRequestHandlers()
+	router := NewRouter()
 
 	// Accept connections indefinitely
 	for {
@@ -39,13 +31,13 @@ func main() {
 		}
 
 		// Handle each connection in a new goroutine
-		go handleConnection(conn)
+		go handleConnection(conn, router)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, router *Router) {
 	defer conn.Close()
-	var res Response
+	var res *Response
 
 	log.Println("handling Connection:", conn.LocalAddr())
 
@@ -57,7 +49,7 @@ func handleConnection(conn net.Conn) {
 		res = NewResponse(400, nil, errMsg)
 	} else {
 		log.Println(req)
-		res = handleRequest(req)
+		res = router.HandleRequest(req)
 	}
 
 	// Send HTTP response
@@ -65,20 +57,6 @@ func handleConnection(conn net.Conn) {
 	if err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
-}
-
-func handleRequest(req Request) Response {
-	//match route to request handler
-	handler, ok := requestHandlers[req.GetRoute()]
-
-	//if route hasn't been registered return 405
-	if !ok {
-		log.Printf("No handler found for: %v", req.Path)
-		return NewResponse(NOT_FOUND, nil, "")
-	}
-
-	//execute request handler and return it's result
-	return handler(req)
 }
 
 func ParseRequest(conn net.Conn) (Request, error) {
@@ -144,7 +122,7 @@ type Response struct {
 	Body        string
 }
 
-func NewResponse(statusCode StatusCode, headers map[string]string, body string) Response {
+func NewResponse(statusCode StatusCode, headers map[string]string, body string) *Response {
 	if headers == nil {
 		headers = make(map[string]string)
 	}
@@ -153,7 +131,7 @@ func NewResponse(statusCode StatusCode, headers map[string]string, body string) 
 	headers["Server"] = "felixGoServer/0.1"
 	headers["Connection"] = "close"
 
-	return Response{
+	return &Response{
 		statusCode,
 		"HTTP/1.1",
 		headers,
@@ -256,8 +234,8 @@ const (
 // 	}
 // )
 
-func AddRequestHandlers() {
-	requestHandlers[Route{"/", GET}] = func(req Request) Response {
+func AddRequestHandlers(router *Router) {
+	router.RequestHandlers[Route{"/", GET}] = func(req Request) *Response {
 		return NewResponse(200, nil, "Hello")
 	}
 }
