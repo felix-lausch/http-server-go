@@ -88,6 +88,8 @@ func ParseRequest(conn net.Conn) (Request, error) {
 		return Request{}, err
 	}
 
+	path, queryParams := ParseRequestTarget(startLineSplit[1])
+
 	headers := make(map[string]string, len(headerLines[1:]))
 	for _, headerLine := range headerLines[1:] {
 		splitHeaderLine := strings.Split(headerLine, ": ")
@@ -96,19 +98,43 @@ func ParseRequest(conn net.Conn) (Request, error) {
 
 	return Request{
 		Method:      method,
-		Path:        startLineSplit[1],
+		Path:        path,
 		HttpVersion: startLineSplit[2],
+		QueryParams: queryParams,
 		Headers:     headers,
 		Body:        splitContent[1],
 	}, nil
 }
 
-// TODO: add query params and seperate them from path
+func ParseRequestTarget(requestTarget string) (path string, queryArgs map[string][]string) {
+	splitRequestTarget := strings.Split(requestTarget, "?")
+
+	if len(splitRequestTarget) == 1 {
+		return splitRequestTarget[0], make(map[string][]string)
+	}
+
+	splitArgs := strings.Split(splitRequestTarget[1], "&")
+
+	args := make(map[string][]string, len(splitArgs))
+	for _, arg := range splitArgs {
+		keyValue := strings.SplitN(arg, "=", 2)
+
+		if val, ok := args[keyValue[0]]; ok {
+			args[keyValue[0]] = append(val, keyValue[1])
+		} else {
+			args[keyValue[0]] = []string{keyValue[1]}
+		}
+	}
+
+	return splitRequestTarget[0], args
+}
+
 type Request struct {
 	Method      HttpMethod
 	Path        string
 	HttpVersion string
 	Headers     map[string]string
+	QueryParams map[string][]string
 	Body        string
 }
 
