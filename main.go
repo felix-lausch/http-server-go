@@ -10,6 +10,15 @@ import (
 
 const PORT = 8080
 
+var (
+	requestHandlers = make(map[Route]func(req Request) Response)
+)
+
+type Route struct {
+	Path   string
+	Method HttpMethod
+}
+
 func main() {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", PORT))
 	if err != nil {
@@ -19,7 +28,8 @@ func main() {
 	defer listener.Close()
 	log.Println("Listening on port:", PORT)
 
-	requestCount := 0
+	AddRequestHandlers()
+
 	// Accept connections indefinitely
 	for {
 		conn, err := listener.Accept()
@@ -29,33 +39,46 @@ func main() {
 		}
 
 		// Handle each connection in a new goroutine
-		go handleConnection(conn, requestCount)
-		requestCount++
+		go handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn, count int) {
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	var res []byte
+	var res Response
 
-	log.Println("handling Connection:", count)
+	log.Println("handling Connection:", conn.LocalAddr())
 
 	req, err := ParseRequest(conn)
 	if err != nil {
-		log.Printf("Error parsing request: %s", err)
-		res = FormatResponse(400)
+		errMsg := fmt.Sprintf("Error parsing request: %s", err)
+
+		log.Print(errMsg)
+		res = NewResponse(400, nil, errMsg)
 	} else {
 		log.Println(req)
-		//TODO: handle req & pass result into FormatResponse
-
-		// Send HTTP response
-		res = FormatResponse(200)
+		res = handleRequest(req)
 	}
 
-	_, err = conn.Write(res)
+	// Send HTTP response
+	_, err = conn.Write([]byte(res.String()))
 	if err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
+}
+
+func handleRequest(req Request) Response {
+	//match route to request handler
+	handler, ok := requestHandlers[req.GetRoute()]
+
+	//if route hasn't been registered return 405
+	if !ok {
+		log.Printf("No handler found for: %v", req.Path)
+		return NewResponse(NOT_FOUND, nil, "")
+	}
+
+	//execute request handler and return it's result
+	return handler(req)
 }
 
 func ParseRequest(conn net.Conn) (Request, error) {
@@ -101,12 +124,17 @@ func ParseRequest(conn net.Conn) (Request, error) {
 	}, nil
 }
 
+// TODO: add query params and seperate them from path
 type Request struct {
 	Method      HttpMethod
 	Path        string
 	HttpVersion string
 	Headers     map[string]string
 	Body        string
+}
+
+func (req *Request) GetRoute() Route {
+	return Route{req.Path, req.Method}
 }
 
 type Response struct {
@@ -117,6 +145,10 @@ type Response struct {
 }
 
 func NewResponse(statusCode StatusCode, headers map[string]string, body string) Response {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+
 	headers["Content-Length"] = fmt.Sprint(len(body))
 	headers["Server"] = "felixGoServer/0.1"
 	headers["Connection"] = "close"
@@ -143,25 +175,9 @@ func (r Response) String() string {
 	return res
 }
 
-func FormatResponse(statusCode StatusCode) []byte {
-	// var responseString string
-	// if statusCode == 400 {
-	// 	responseString = "HTTP/1.1 400 BAD REQUEST\r\n" +
-	// 		"Connection: close\r\n"
-	// } else {
-	// 	responseString = "HTTP/1.1 200 OK\r\n" +
-	// 		"Content-Type: text/plain\r\n" +
-	// 		"Connection: close\r\n" +
-	// 		"Server: felixGoServer/0.1\r\n" +
-	// 		"\r\n" +
-	// 		"Hello from my custom GOlang server!"
-	// }
-
-	res := NewResponse(statusCode, make(map[string]string), "Hello from my custom GOlang server!")
-
-	resString := res.String()
-
-	return []byte(resString)
+func FormatResponse(statusCode StatusCode, body string) []byte {
+	res := NewResponse(statusCode, make(map[string]string), body)
+	return []byte(res.String())
 }
 
 //go:generate stringer -type=HttpMethod
@@ -239,3 +255,9 @@ const (
 // 		"NO_CONTENT":     NO_CONTENT,
 // 	}
 // )
+
+func AddRequestHandlers() {
+	requestHandlers[Route{"/", GET}] = func(req Request) Response {
+		return NewResponse(200, nil, "Hello")
+	}
+}
