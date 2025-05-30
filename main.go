@@ -20,7 +20,9 @@ func main() {
 	defer listener.Close()
 	log.Println("Listening on port:", PORT)
 
-	router := NewRouter()
+	// router := NewRouter()
+	router := NewTrieRouter()
+	// AddRequestHandlers(router)
 	AddRequestHandlers(router)
 
 	// Accept connections indefinitely
@@ -36,7 +38,7 @@ func main() {
 	}
 }
 
-func handleConnection(conn net.Conn, router *Router) {
+func handleConnection(conn net.Conn, router *TrieRouter) {
 	defer conn.Close()
 	var res *Response
 
@@ -261,7 +263,11 @@ const (
 // 	}
 // )
 
-func AddRequestHandlers(router *Router) {
+func AddRequestHandlers(router *TrieRouter) {
+	dynamicHandler := func(req Request) *Response {
+		return NewResponse(OK, nil, "Hello from dynamics")
+	}
+
 	indexHandler := func(req Request) *Response {
 		return ServeStaticHtml("static/index.html")
 	}
@@ -270,8 +276,9 @@ func AddRequestHandlers(router *Router) {
 		return ServeStaticHtml("static/about.html")
 	}
 
-	router.RequestHandlers[Route{"/", GET}] = indexHandler
-	router.RequestHandlers[Route{"/about", GET}] = aboutHandler
+	router.AddHandler("/", indexHandler)
+	router.AddHandler("/about", aboutHandler)
+	router.AddHandler("/articles/:id", dynamicHandler)
 }
 
 func ServeStaticHtml(file string) *Response {
