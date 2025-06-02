@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -21,18 +22,27 @@ func NewHttpServer(port int) *HttpServer {
 }
 
 func (s *HttpServer) Start() {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
+	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+	if err != nil {
+		log.Fatal("Failed to load https certificate or private key:", err)
+	}
+
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
+
+	tcpListener, err := net.Listen("tcp", fmt.Sprintf(":%v", s.Port))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
 	log.Println("Listening on port:", PORT)
 
-	defer listener.Close()
+	defer tcpListener.Close()
+
+	tlsListener := tls.NewListener(tcpListener, tlsConfig)
 
 	// Accept connections indefinitely
 	for {
-		conn, err := listener.Accept()
+		conn, err := tlsListener.Accept()
 		if err != nil {
 			log.Printf("Failed to accept connection: %v", err)
 			continue
