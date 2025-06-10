@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -67,50 +67,52 @@ func handleConnection(conn net.Conn, router *TrieRouter) {
 	}
 }
 
-func ParseRequest(conn net.Conn) (Request, error) {
-	buffer := make([]byte, 4096) //TODO: make reading smarter? what if body is larger than this?
-	n, err := conn.Read(buffer)
+func ParseRequest(conn net.Conn) (*Request, error) {
+	reader := bufio.NewReader(conn)
+
+	startLine, err := reader.ReadString('\n')
 	if err != nil {
-		return Request{}, err
+		return nil, err
 	}
 
-	content := string(buffer[:n])
-	log.Printf("Received:\n%s", content)
-
-	splitContent := strings.Split(content, "\r\n\r\n")
-	if len(splitContent) != 2 {
-		return Request{}, errors.New("request isn't http formatted")
-	}
-
-	requestInfo := splitContent[0]
-	headerLines := strings.Split(requestInfo, "\r\n")
-
-	startLineSplit := strings.Split(headerLines[0], " ")
-	if len(startLineSplit) != 3 {
-		return Request{}, fmt.Errorf("http start line is not correctly formatted: %v", startLineSplit)
+	startLineSplit := strings.Split(strings.TrimSpace(startLine), " ")
+	if len(startLineSplit) < 3 {
+		return nil, fmt.Errorf("http start line is not correctly formatted: %v", startLine)
 	}
 
 	method, err := ParseHttpMethod(startLineSplit[0])
 	if err != nil {
-		return Request{}, err
+		return nil, err
 	}
 
 	path, queryParams := ParseRequestTarget(startLineSplit[1])
 
-	headers := make(map[string]string, len(headerLines[1:]))
-	for _, headerLine := range headerLines[1:] {
-		splitHeaderLine := strings.Split(headerLine, ": ")
-		headers[splitHeaderLine[0]] = splitHeaderLine[1]
-	}
-
-	return Request{
+	req := &Request{
 		Method:      method,
 		Path:        path,
-		HttpVersion: startLineSplit[2],
+		Headers:     make(map[string]string),
 		QueryParams: queryParams,
-		Headers:     headers,
-		Body:        splitContent[1],
-	}, nil
+		HttpVersion: startLineSplit[2],
+	}
+
+	//Read headers line by line
+	for {
+		headerLine, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("error reading header line: %v", err)
+		}
+
+		if headerLine == "\r\n" {
+			break
+		}
+
+		headerLineSplit := strings.Split(headerLine, ": ")
+		req.Headers[headerLineSplit[0]] = headerLineSplit[1]
+	}
+
+	//TODO: read body
+
+	return req, nil
 }
 
 func ParseRequestTarget(requestTarget string) (path string, queryArgs map[string][]string) {
