@@ -9,7 +9,7 @@ type TrieRouter struct {
 }
 
 type RouterNode struct {
-	Handler    func(req *Request) *Response
+	Handler    func(req Request) *Response
 	Method     HttpMethod
 	Children   map[string]*RouterNode
 	ParamChild *RouterNode
@@ -28,7 +28,7 @@ func NewTrieRouter() *TrieRouter {
 	}
 }
 
-func (router *TrieRouter) AddHandler(pattern string, handler func(req *Request) *Response) {
+func (router *TrieRouter) AddHandler(pattern string, handler func(req Request) *Response) {
 	current := router.Root
 	segments := strings.SplitSeq(pattern, "/")
 
@@ -64,7 +64,7 @@ func (router *TrieRouter) AddHandler(pattern string, handler func(req *Request) 
 	current.Method = GET //TODO: pass in method
 }
 
-func (router *TrieRouter) HandleRequest(req *Request) *Response {
+func (router *TrieRouter) HandleRequest(req Request) *Response {
 	current := router.Root
 	pathSegments := strings.Split(req.Path, "/")
 	params := make(map[string]string)

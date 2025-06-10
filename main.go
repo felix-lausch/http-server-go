@@ -11,7 +11,7 @@ func main() {
 	server := NewHttpServer(PORT)
 	router := server.Router //TODO: like this or pass router in?
 
-	dynamicHandler := func(req *Request) *Response {
+	dynamicHandler := func(req Request) *Response {
 		body := "Recieved:\r\n"
 
 		if req.PathParams != nil {
@@ -24,24 +24,18 @@ func main() {
 		return NewResponse(OK, nil, body)
 	}
 
-	indexHandler := func(req *Request) *Response {
+	indexHandler := func(req Request) *Response {
 		return ServeStaticHtml("static/index.html")
 	}
 
-	aboutHandler := func(req *Request) *Response {
+	aboutHandler := func(req Request) *Response {
 		return ServeStaticHtml("static/about.html")
-	}
-
-	testHandler := func(req *Request) *Response {
-		return NewResponse(200, nil, req.Body)
 	}
 
 	router.AddHandler("/", indexHandler)
 	router.AddHandler("/about", aboutHandler)
 	router.AddHandler("/articles/:id", dynamicHandler)
 	router.AddHandler("/posts/:postId/comments/:commentId", dynamicHandler)
-
-	router.AddHandler("/post", testHandler)
 
 	server.Start()
 }
