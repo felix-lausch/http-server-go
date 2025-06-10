@@ -8,6 +8,7 @@ type TrieRouter struct {
 
 }
 
+//TODO: add handler and handleRequest should be case insensitive
 type RouterNode struct {
 	Handler    func(req *Request) *Response
 	Method     HttpMethod

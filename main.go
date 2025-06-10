@@ -24,6 +24,13 @@ func main() {
 		return NewResponse(OK, nil, body)
 	}
 
+	bodyTestHandler := func(req *Request) *Response {
+		headers := make(map[string]string)
+		headers["Content-Type"] = req.Headers["Content-Type"]
+
+		return NewResponse(OK, headers, req.Body)
+	}
+
 	indexHandler := func(req *Request) *Response {
 		return ServeStaticHtml("static/index.html")
 	}
@@ -36,6 +43,8 @@ func main() {
 	router.AddHandler("/about", aboutHandler)
 	router.AddHandler("/articles/:id", dynamicHandler)
 	router.AddHandler("/posts/:postId/comments/:commentId", dynamicHandler)
+
+	router.AddHandler("/bodyTest", bodyTestHandler)
 
 	server.Start()
 }

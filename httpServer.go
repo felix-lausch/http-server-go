@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
+)
+
+const (
+	DEFAULT_BUFFER_SIZE = 2048
 )
 
 type HttpServer struct {
@@ -106,13 +111,43 @@ func ParseRequest(conn net.Conn) (*Request, error) {
 			break
 		}
 
+		headerLine = strings.TrimSuffix(headerLine, "\r\n")
 		headerLineSplit := strings.Split(headerLine, ": ")
+
 		req.Headers[headerLineSplit[0]] = headerLineSplit[1]
 	}
 
-	//TODO: read body
+	body, err := ParseBody(req.Headers, reader)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing body: %v", err)
+	}
 
+	req.Body = body
 	return req, nil
+}
+
+func ParseBody(requestHeaders map[string]string, reader *bufio.Reader) (string, error) {
+	bufferSize := DEFAULT_BUFFER_SIZE
+
+	if len, ok := requestHeaders["Content-Length"]; ok {
+		contentLength, err := strconv.Atoi(len)
+		if err != nil {
+			return "", fmt.Errorf("error parsing content length header: %v", err)
+		}
+
+		bufferSize = contentLength
+	}
+
+	buffer := make([]byte, bufferSize)
+
+	n, err := reader.Read(buffer)
+	if err != nil {
+		return "", fmt.Errorf("error reading request body: %v", err)
+	}
+
+	//TODO: handle reading bodies larger than default buffer size
+
+	return string(buffer[:n]), nil
 }
 
 func ParseRequestTarget(requestTarget string) (path string, queryArgs map[string][]string) {
