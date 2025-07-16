@@ -34,20 +34,3 @@ func main2() {
 
 	io.Copy(os.Stdout, &r)
 }
-
-// func (reader rot13Reader) FuckMe() string {
-// 	return "FUCK ME HARDER"
-// }
-// func (reader MyReader) Read(bytes []byte) (int, error) {
-// 	for i := range bytes {
-// 		bytes[i] = 'A'
-// 	}
-
-// 	return 1, nil
-// }
-
-// type BrainRotError int
-
-// func (e BrainRotError) Error() string {
-// 	return "OMG WHAT TH FUCKK"
-// }
